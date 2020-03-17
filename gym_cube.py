@@ -24,7 +24,7 @@ class Gym_cube:
         self.action_space = Action_space(self.nFace)
 
         self._step = 0
-        self._max_episode_steps = 10000
+        self._max_episode_steps = 1000000
 
         # internal properties
         # rotation matrix
@@ -53,16 +53,17 @@ class Gym_cube:
         for i in range(self.nFace):
             self.symbol.append('\x1b[0;97;%sm %s \x1b[0m' % (str(40 + i), str(i + 1)))
 
+        self.total = 0
+        self.prev_total = 0
+
     def reset(self):
-        print('111')
-        print('gym_cube::reset')
         self._step = 0
         self.shuffle()
         observation = self.observation_space.states
         return observation
 
     def rotate(self, cmd):
-        if not (type(cmd) == int and -self.nFace <= cmd and cmd <= self.nFace and cmd != 0):
+        if not (-self.nFace <= cmd and cmd <= self.nFace and cmd != 0):
             return None
 
         n = self.nDot
@@ -85,8 +86,11 @@ class Gym_cube:
             self.rotate(action)
 
     def evaluate(self):
-        total = np.sum(np.max(face) - np.min(face) for face in self.observation_space.states)
-        ret = 100 if total == 0 else -total
+        self.total = np.sum(np.max(face) - np.min(face) for face in self.observation_space.states)
+        ret = 100. if self.total == 0 else 0.01 if self.total > self.prev_total else 0.
+
+        self.prev_total = self.total
+
         return ret
 
     def isSolved(self):
@@ -123,3 +127,24 @@ class Gym_cube:
 
     def close(self):
         pass
+
+
+if __name__ == '__main__':
+    env = Gym_cube()
+    env.reset()
+
+    iter = 0
+    score = 0.
+    while True:
+        action = env.action_space.sample()
+        state, reward, done, _ = env.step(action)
+
+        if iter % 10000 == 0:
+            print('%d, %.3f' % (iter, score))
+            env.render()
+
+        iter += 1
+        score += reward
+
+        if done:
+            break
