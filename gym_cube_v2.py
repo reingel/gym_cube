@@ -1,5 +1,10 @@
 import numpy as np
 
+class Cubelet:
+    def __init__(self, isVerbose=False):
+
+
+
 class Observation_space:
     def __init__(self, nDot, nFace, isVerbose=False):
         self.states = np.arange(1, nFace+1, dtype=int).repeat(nDot**2).reshape(nFace,nDot,nDot)
@@ -16,7 +21,7 @@ class Action_space:
     def sample(self):
         return self.actions[np.random.randint(0, self.actions.size)]
 
-class Gym_cube:
+class Cube:
     def __init__(self, isVerbose=False):
         self.nDot = 3 # no. of dots in an edge
         self.nFace = 6 # no. of faces in a cube
