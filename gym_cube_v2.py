@@ -1,12 +1,12 @@
 import numpy as np
 
-class Cubelet:
-    def __init__(self, isVerbose=False):
-
-
+nFace = 6 # no. of faces in a cube
+nDot = 3 # no. of dots in an edge
+ele_size = (nDot**2 * nFace) * nFace
+maxTurn = 26 # theoretical max. of turns to solve
 
 class Observation_space:
-    def __init__(self, nDot, nFace, isVerbose=False):
+    def __init__(self, isVerbose=False):
         self.states = np.arange(1, nFace+1, dtype=int).repeat(nDot**2).reshape(nFace,nDot,nDot)
         if isVerbose:
             for i in range(nFace):
@@ -14,8 +14,11 @@ class Observation_space:
                     for k in range(nDot):
                         self.states[i,j,k] = (i+1)*100 + j*10 + k
 
+    def onehot(self):
+        return np.eye(nFace)[self.states - 1]
+
 class Action_space:
-    def __init__(self, nFace=6):
+    def __init__(self):
         self.actions = np.hstack((np.arange(-nFace, 0), np.arange(1, nFace + 1)))
 
     def sample(self):
@@ -23,21 +26,19 @@ class Action_space:
 
 class Cube:
     def __init__(self, isVerbose=False):
-        self.nDot = 3 # no. of dots in an edge
-        self.nFace = 6 # no. of faces in a cube
-        self.observation_space = Observation_space(self.nDot, self.nFace, isVerbose)
-        self.action_space = Action_space(self.nFace)
+        self.observation_space = Observation_space(isVerbose)
+        self.action_space = Action_space()
 
         self._step = 0
         self._max_episode_steps = 26*100
 
         # internal properties
         # rotation matrix
-        self.A = np.zeros((self.nDot * 3, self.nDot * 3))
+        self.A = np.zeros((nDot * 3, nDot * 3))
 
         # coord of rotation matrix for top, left, center, right, bottom
-        self.row = np.array([0, 1, 1, 1, 2]) * self.nDot
-        self.col = np.array([1, 0, 1, 2, 1]) * self.nDot
+        self.row = np.array([0, 1, 1, 1, 2]) * nDot
+        self.col = np.array([1, 0, 1, 2, 1]) * nDot
 
         # id of faces: top, left, center, right, bottom
         self.idFace = np.array([[4, 5, 1, 3, 2],       # 1
@@ -55,23 +56,15 @@ class Cube:
                                 [0, 1, 0, 3, 2]])      # 6
 
         self.symbol = []
-        for i in range(self.nFace):
+        for i in range(nFace):
             self.symbol.append('\x1b[0;97;%sm %s \x1b[0m' % (str(40 + i), str(i + 1)))
 
-        self.total = 0
-        self.prev_total = 0
-
-    def reset(self):
-        self._step = 0
-        self.shuffle()
-        observation = self.observation_space.states
-        return observation
+    #
+    # internals
+    #
 
     def rotate(self, cmd):
-        if not (-self.nFace <= cmd and cmd <= self.nFace and cmd != 0):
-            return None
-
-        n = self.nDot
+        n = nDot
         c = np.abs(cmd) - 1
         d = np.sign(cmd)
         idx = self.idFace[c]
@@ -87,19 +80,14 @@ class Cube:
 
     def shuffle(self, n=30):
         for i in range(n):
-            action = np.random.randint(-self.nFace, self.nFace + 1)
+            action = self.action_space.sample()
             self.rotate(action)
 
-    def evaluate(self):
-        self.total = np.sum(np.max(face) - np.min(face) for face in self.observation_space.states)
-        ret = 100. if self.total == 0 else 0.01 if self.total > self.prev_total else 0.
-
-        self.prev_total = self.total
-
-        return ret
-
     def isSolved(self):
-        return all(np.min(face) == np.max(face) for face in self.observation_space.states)
+        return all(np.unique(face).size == 1 for face in self.observation_space.states)
+
+    def evaluate(self):
+        return 1. if self.isSolved() else 0.
 
     def symbolize(self, state):
         ret = ''
@@ -107,15 +95,25 @@ class Cube:
             ret += self.symbol[i-1]
         return ret
 
+    #
+    # interfaces
+    #
+
+    def reset(self):
+        self._step = 0
+        observation = self.observation_space.states
+        return observation
+
     def render(self):
-        for i in range(self.nDot):
+        print()
+        for i in range(nDot):
             print(self.symbolize(self.observation_space.states[0][i]))
-        for i in range(self.nDot):
+        for i in range(nDot):
             print(self.symbolize(self.observation_space.states[1][i]),
                   self.symbolize(self.observation_space.states[2][i]),
                   self.symbolize(self.observation_space.states[3][i]),
                   self.symbolize(self.observation_space.states[4][i]))
-        for i in range(self.nDot):
+        for i in range(nDot):
             print(self.symbolize(self.observation_space.states[5][i]))
         print()
 
@@ -123,7 +121,7 @@ class Cube:
         self.rotate(action)
         self._step += 1
 
-        observation = self.observation_space.states
+        observation = self.observation_space.onehot()
         reward = self.evaluate()
         done = self.isSolved() or (self._step >= self._max_episode_steps)
         info = None
@@ -135,7 +133,7 @@ class Cube:
 
 
 if __name__ == '__main__':
-    env = Gym_cube()
+    env = Cube()
     env.reset()
 
     iter = 0
@@ -144,12 +142,12 @@ if __name__ == '__main__':
         action = env.action_space.sample()
         state, reward, done, _ = env.step(action)
 
-        if iter % 10000 == 0:
+        if iter % 1000 == 0:
             print('%d, %.3f' % (iter, score))
             env.render()
 
         iter += 1
         score += reward
 
-        if done:
+        if done or iter > 10000:
             break

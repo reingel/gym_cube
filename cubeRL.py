@@ -2,31 +2,7 @@ import numpy as np
 import numpy.random as rg
 import matplotlib.pyplot as plt
 import tensorflow as tf
-import seaborn as sns
-from gym_cube import Gym_cube
-
-env = Gym_cube()
-
-max_episodes = 1000
-scores = []
-steps = []
-iteration = 0
-
-nFace = env.nFace
-nDot = env.nDot
-ele_size = nFace * nDot * nDot
-layer_count = nFace
-
-epsilon = 0.9
-epsilon_min = 0.01
-decay = 0.99
-
-gamma = 0.99
-batch_size = 512
-batch_len = 8
-max_memory = batch_size * batch_len
-memory = []
-train_count = 0
+from gym_cube_v2 import Cube, nFace
 
 def append_sample(state, action, reward, next_state, done):
     memory.append([state.flatten(), action, reward, next_state.flatten(), done])
@@ -84,6 +60,29 @@ def train_model():
 
         model.fit(states, target, batch_size=batch_size, epochs=1, verbose=0)
 
+
+env = Cube()
+
+max_episodes = 1000
+scores = []
+steps = []
+iteration = 0
+
+nFace = env.nFace
+nDot = env.nDot
+ele_size = nFace * nDot * nDot
+layer_count = nFace
+
+epsilon = 0.9
+epsilon_min = 0.01
+decay = 0.99
+
+gamma = 0.99
+batch_size = 512
+batch_len = 8
+max_memory = batch_size * batch_len
+memory = []
+train_count = 0
 
 model = build_model()
 target_model = build_model()
