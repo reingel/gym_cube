@@ -15,11 +15,14 @@ class Observation_space:
                         self.states[i,j,k] = (i+1)*100 + j*10 + k
 
     def onehot(self):
-        return np.eye(nFace)[self.states - 1]
+        return np.eye(nFace)[self.states - 1].flatten()
 
 class Action_space:
     def __init__(self):
         self.actions = np.hstack((np.arange(-nFace, 0), np.arange(1, nFace + 1)))
+
+    def size(self):
+        return 2*nFace
 
     def sample(self):
         return self.actions[np.random.randint(0, self.actions.size)]
@@ -83,11 +86,15 @@ class Cube:
             action = self.action_space.sample()
             self.rotate(action)
 
+        observation = self.observation_space.onehot()
+
+        return observation
+
     def isSolved(self):
         return all(np.unique(face).size == 1 for face in self.observation_space.states)
 
     def evaluate(self):
-        return 1. if self.isSolved() else 0.
+        return 0. if self.isSolved() else 1.
 
     def symbolize(self, state):
         ret = ''
@@ -101,6 +108,7 @@ class Cube:
 
     def reset(self):
         self._step = 0
+        self.observation_space.__init__()
         observation = self.observation_space.states
         return observation
 

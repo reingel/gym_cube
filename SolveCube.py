@@ -18,54 +18,57 @@ def action2index(action):
 def index2action(index):
     return (index - nFace) if index < nFace else (index - nFace + 1)
 
-def build_model():
-    x = tf.keras.Input(shape=(ele_size,))
-    d1 = tf.keras.layers.Dense(5000, activation='relu')(x)
-    d2 = tf.keras.layers.Dense(1000, activation='relu')(d1)
-    y = tf.keras.layers.Dense(nFace*2, activation='sigmoid')(d2)
+def action2onehot(action):
+    return np.eye(nFace*2)[action2index(action)]
 
-    model = tf.keras.Model(inputs=x, outputs=y)
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.005), loss='mse')
+def nturn2onehot(nturn):
+    return np.eye(maxTurn)[nturn - 1]
+
+def onehot2nturn(onehot):
+    return np.argmax(onehot) + 1 if np.sum(onehot) == 1.0 else -1
+
+def build_model():
+
+    model = tf.keras.Sequential([
+        tf.keras.layers.Dense(units=5000, activation='relu', input_shape=(ele_size,), kernel_initializer='he_uniform'),
+        tf.keras.layers.Dense(units=1000, activation='relu', kernel_initializer='he_uniform'),
+        tf.keras.layers.Dense(units=1000, activation='relu', kernel_initializer='he_uniform'),
+        tf.keras.layers.Dense(units=1000, activation='relu', kernel_initializer='he_uniform'),
+        tf.keras.layers.Dense(units=26, activation='softmax')
+    ])
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.01), loss='categorical_crossentropy')
     model.summary()
     return model
 
 env = Cube()
 
 batch_size = 512
-iter_max = 100
+iter_max = 10000
 model = build_model()
-model_e = build_model()
 
-def train_model():
-    for k in range(iter_max):
-        targets = np.zeros(batch_size)
-        states = np.zeros((batch_size, ele_size))
-        next_states = np.zeros((batch_size, ele_size))
-        actions = np.zeros(batch_size)
-        rewards = np.zeros(batch_size)
-        dones = np.zeros(batch_size)
+# def train_model():
+for k in range(iter_max):
+    targets = rg.randint(1, maxTurn+1, size=batch_size)
+    states = np.zeros((batch_size, ele_size))
 
-        for i in range(batch_size):
-            env.reset()
-            nTurn = rg.randint(1, maxTurn+1)
-            env.shuffle(nTurn)
+    for i in range(batch_size):
+        nTurn = targets[i]
+        env.reset()
+        env.shuffle(nTurn)
 
-            targets[i] = nTurn
-            states[i] = env.observation_space.onehot()
+        states[i] = env.observation_space.onehot()
 
+    model.fit(states, nturn2onehot(targets), batch_size=batch_size, epochs=1, verbose=1)
 
-            for action in env.action_space.actions:
-                next_state, reward, done, _ = env.step(action)
+# def evaluate_model():
+targets = rg.randint(1, maxTurn+1, size=20)
 
+for nTurn in targets:
+    env.reset()
+    env.shuffle(nTurn)
 
-        target = model.predict(states)
-        next_target = target_model.predict(next_states)
+    state = env.observation_space.onehot()
 
-        for i in range(batch_size):
-            if dones[i]:
-                target[i][action2index(actions[i])] = rewards[i]
-            else:
-                target[i][action2index(actions[i])] = rewards[i] + gamma * np.amax(next_target[i])
+    nTurn_hat = model.predict(np.expand_dims(state, axis=0))
 
-        model.fit(states, target, batch_size=batch_size, epochs=1, verbose=0)
-
+    print(nTurn, onehot2nturn(nTurn_hat))
